@@ -1,0 +1,7 @@
+# Generated dependencies and caches. The production dist/ is delivered.
+**/node_modules/
+**/.cache/
+**/.vite/
+**/.vite-temp/
+**/.npm/
+test/scratch/
