@@ -83,12 +83,14 @@ Controls, inputs and most panels use 4px corners; the arcade cabinet uses 6px. D
 | Game viewport               | `GameViewport.tsx`, `MiningScene.ts`          | Loading, load failure/reload, idle, active, Fever and paused states; pointer/touch and Space controls; optional sound           |
 | HUD / charge meter          | `App.tsx`, `.hud`, `.charge-meter`            | Score, virtual Power and RPM; numeric progress semantics; wide Nice band, narrow Perfect band and live position marker          |
 | Combo / feedback            | `App.tsx`, `.combo-panel`, `.game-feedback`   | Five slots, explicit combo number, Fever countdown and text outcome announcements                                               |
-| Upgrade / collection        | `ProgressionViews.tsx`                        | Prices, level caps, insufficient balance, unlocked/equipped states; buttons explain the available action                        |
+| Upgrade / collection        | `ProgressionViews.tsx`                        | Score prices, level caps and current/required virtual Power; upgrade buttons require both thresholds; owned cosmetics remain equippable                        |
 | Leaderboard                 | `ProgressionViews.tsx`                        | Local/shared views; four metric buttons in a named group; loading, empty, unavailable and populated states                      |
-| Official readings           | `ChainViews.tsx`, `lib/api.ts`                | Sepolia labels; loading/unavailable/stale/error text; integer-safe formatting; refresh disabled during requests and rate limits |
+| Official readings           | `ChainViews.tsx`, `lib/api.ts`                | Sepolia labels; loading/unavailable/stale/error text; integer-safe formatting; refresh skips endpoints until their own Retry-After deadline; same-ID lookups show loading and support retry |
 | Wallet picker               | `ConnectWallet.tsx`, `lib/wallet.ts`          | Optional named browser wallets, mobile links, pending/errors, connected address, chain switching and disconnect                 |
 | Modal                       | `Modal.tsx`                                   | Native `showModal()`, named heading, close button, Escape/backdrop dismissal, focus containment and return                      |
 | Input / notice              | `.token-form input`, `.notice`, `.error-note` | Associated token lookup label, invalid input text, visible service/storage notices                                              |
+
+Each upgrade row associates its Power requirement with its button through `aria-describedby`. The next tier requires 25 / 100 / 250 / 500 / 1,000 accumulated Power for levels 1–5, with Score as the only spendable currency. Current Power rounds down in eligibility copy so a fraction never displays as a reached threshold. Utility buttons retain native Space and Enter activation; the game intercepts Space only on gameplay targets outside dialogs.
 
 Sound is opt-in. Backgrounding or leaving Play pauses gameplay and requires explicit resume. Reduced-motion preferences remove decorative wheel motion, idle looping, particles, shake and CSS transitions while preserving the essential playable trajectory. Forced-colors styles preserve focus and segmented control edges. These accommodations do not establish full screen-reader or physical-device accessibility certification.
 

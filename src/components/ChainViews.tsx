@@ -7,6 +7,7 @@ import {
   economySchema,
   formatInt,
   formatToken,
+  officialRetryRemaining,
   squeekSchema,
   statusSchema,
   useOfficial,
@@ -85,14 +86,13 @@ export function ChainDashboard() {
   const status = useOfficial("/status", statusSchema, 15000);
   const core = useOfficial("/core", coreSchema, 30000);
   const economy = useOfficial("/economy/state", economySchema, 60000);
+  const readings = [status, core, economy];
   const [refreshing, setRefreshing] = useState(false);
   const refresh = async () => {
     setRefreshing(true);
-    await Promise.allSettled([
-      status.refetch(),
-      core.refetch(),
-      economy.refetch(),
-    ]);
+    await Promise.allSettled(
+      readings.filter((q) => q.canRefetch).map((q) => q.refetch()),
+    );
     setRefreshing(false);
   };
   const pct = core.data
@@ -107,6 +107,7 @@ export function ChainDashboard() {
   const unavailable = (pending: boolean) =>
     pending ? "Loading…" : "Unavailable";
   const error = status.error ?? core.error ?? economy.error;
+  const rateLimited = readings.some((q) => officialRetryRemaining(q.error) > 0);
   return (
     <>
       <div className="page-heading">
@@ -118,11 +119,7 @@ export function ChainDashboard() {
         </div>
         <button
           className="secondary"
-          disabled={
-            refreshing ||
-            status.isFetching ||
-            Boolean((error as { retryAfterMs?: number })?.retryAfterMs)
-          }
+          disabled={refreshing || !readings.some((q) => q.canRefetch)}
           onClick={() => void refresh()}
         >
           <Icon name="refresh" size={16} />
@@ -139,6 +136,8 @@ export function ChainDashboard() {
       {error && (
         <p className="error-note" role="status">
           {error.message} Previous readings, if shown, may be stale.
+          {rateLimited &&
+            " Rate-limited readings will retry after the API’s waiting period."}
         </p>
       )}
       <div className="chain-grid">
@@ -323,8 +322,12 @@ function AccountPanel() {
       return;
     }
     setInvalid("");
-    setId(BigInt(input).toString());
+    const nextId = BigInt(input).toString();
+    if (nextId === id) {
+      if (token.canRefetch) void token.refetch();
+    } else setId(nextId);
   };
+  const sameToken = /^\d{1,20}$/.test(input) && BigInt(input).toString() === id;
   return (
     <section className="panel account-panel">
       <div className="section-title">
@@ -398,8 +401,12 @@ function AccountPanel() {
             aria-invalid={Boolean(invalid)}
             aria-describedby="token-error"
           />
-          <button className="secondary" disabled={token.isFetching}>
-            Look up <Icon name="arrow" size={16} />
+          <button
+            className="secondary"
+            disabled={token.isFetching || (sameToken && !token.canRefetch)}
+          >
+            {token.isFetching ? "Looking up…" : "Look up"}{" "}
+            <Icon name="arrow" size={16} />
           </button>
         </div>
         <p id="token-error" className="error-note" role="status">
@@ -408,7 +415,7 @@ function AccountPanel() {
       </form>
       {id && (
         <div className="token-result" role="status">
-          {token.isPending
+          {token.isFetching
             ? "Reading Squeek…"
             : token.error
               ? token.error.message

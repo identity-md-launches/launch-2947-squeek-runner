@@ -66,21 +66,17 @@ export function GameViewport({
   }, [runner]);
   useEffect(() => {
     if (!active) return;
+    const gameplayTarget = (e: KeyboardEvent) =>
+      !document.querySelector("dialog[open]") &&
+      e.target instanceof HTMLElement &&
+      !e.target.closest("input,textarea,select,a,button:not(.sprint-button)");
     const down = (e: KeyboardEvent) => {
-      if (
-        e.code !== "Space" ||
-        e.repeat ||
-        document.querySelector("dialog[open]")
-      )
-        return;
-      const target = e.target as HTMLElement;
-      if (target.closest("input,textarea,select,a,button:not(.sprint-button)"))
-        return;
+      if (e.code !== "Space" || e.repeat || !gameplayTarget(e)) return;
       e.preventDefault();
       runner.press();
     };
     const up = (e: KeyboardEvent) => {
-      if (e.code === "Space") {
+      if (e.code === "Space" && gameplayTarget(e)) {
         e.preventDefault();
         runner.release();
       }

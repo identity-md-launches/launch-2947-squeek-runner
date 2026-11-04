@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import {
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 const uint = z.string().regex(/^\d+$/).max(80);
 const address = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
 const chain = z.object({ target: z.string(), chainId: uint });
@@ -76,13 +81,18 @@ export const squeekSchema = z.object({
   metadata: z.object({ status: z.string(), name: z.string().optional() }),
 });
 export class OfficialError extends Error {
+  readonly retryAt: number;
   constructor(
     message: string,
     public retryAfterMs = 0,
   ) {
     super(message);
+    this.retryAt = retryAfterMs ? Date.now() + retryAfterMs : 0;
   }
 }
+export const officialRetryRemaining = (error: unknown, now = Date.now()) =>
+  error instanceof OfficialError ? Math.max(0, error.retryAt - now) : 0;
+const retryWindows = new WeakMap<QueryClient, Map<string, OfficialError>>();
 const API = "https://api.squeekchain.com/v1";
 export async function officialRead<T>(
   path: string,
@@ -149,19 +159,51 @@ export function useOfficial<T>(
   interval: number,
   enabled = true,
 ) {
-  return useQuery({
+  const client = useQueryClient();
+  let cooldowns = retryWindows.get(client);
+  if (!cooldowns) {
+    cooldowns = new Map();
+    retryWindows.set(client, cooldowns);
+  }
+  const endpointCooldowns = cooldowns;
+  const [, updateRetryState] = useState(0);
+  const query = useQuery({
     queryKey: ["official", path],
-    queryFn: ({ signal }) => officialRead(path, schema, signal),
+    queryFn: async ({ signal }) => {
+      // Keep deadlines across observers: query state clears errors during a fetch.
+      // Guard manual refresh, remount and reconnect without extending the deadline.
+      const error = endpointCooldowns.get(path);
+      if (officialRetryRemaining(error)) throw error;
+      endpointCooldowns.delete(path);
+      try {
+        return await officialRead(path, schema, signal);
+      } catch (error) {
+        if (error instanceof OfficialError && error.retryAfterMs)
+          endpointCooldowns.set(path, error);
+        throw error;
+      }
+    },
     enabled,
     staleTime: interval / 2,
-    refetchInterval: (q) =>
-      q.state.error instanceof OfficialError && q.state.error.retryAfterMs
-        ? q.state.error.retryAfterMs
-        : interval,
+    refetchInterval: (q) => officialRetryRemaining(q.state.error) || interval,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
     retry: false,
   });
+  useEffect(() => {
+    const remaining = officialRetryRemaining(query.error);
+    if (!remaining) return;
+    const timer = setTimeout(
+      () => updateRetryState((v) => v + 1),
+      remaining + 1,
+    );
+    return () => clearTimeout(timer);
+  }, [query.error]);
+  return {
+    ...query,
+    canRefetch:
+      enabled && !query.isFetching && !officialRetryRemaining(query.error),
+  };
 }
 export const formatInt = (v: string | number | undefined) =>
   v === undefined

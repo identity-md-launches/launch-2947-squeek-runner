@@ -92,10 +92,15 @@ export function saveProgress(p: Progress) {
     return false;
   }
 }
+// Lifetime virtual Power unlocks each tier; only Score is spent.
+export const UPGRADE_POWER_REQUIRED = [25, 100, 250, 500, 1000] as const;
+export const upgradePowerRequired = (level: number) =>
+  UPGRADE_POWER_REQUIRED[Math.min(level, 4)];
 export function purchaseUpgrade(p: Progress, id: Upgrade): Progress | null {
   if (p.levels[id] >= 5) return null;
   const cost = upgradeCost(id, p.levels);
-  if (p.score < cost) return null;
+  if (p.score < cost || p.power < upgradePowerRequired(p.levels[id]))
+    return null;
   return {
     ...p,
     score: p.score - cost,

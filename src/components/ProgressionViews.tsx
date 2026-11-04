@@ -7,7 +7,7 @@ import {
   type BoardMetric,
   type BoardRow,
 } from "../lib/score-api";
-import { today } from "../lib/progression";
+import { today, upgradePowerRequired } from "../lib/progression";
 import { Icon } from "./Icon";
 const fmt = (n: number) =>
   n.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -38,7 +38,8 @@ export function Upgrades({
         <div className="upgrade-list">
           {UPGRADES.map((u, i) => {
             const level = p.levels[u.id],
-              cost = upgradeCost(u.id, p.levels);
+              cost = upgradeCost(u.id, p.levels),
+              requiredPower = upgradePowerRequired(level);
             return (
               <section className="upgrade-row" key={u.id}>
                 <div className="upgrade-icon">
@@ -50,6 +51,12 @@ export function Upgrades({
                     <span className="small muted">Level {level} / 5</span>
                   </div>
                   <p className="muted small">{u.detail}</p>
+                  {level < 5 && (
+                    <p className="muted small" id={`power-${u.id}`}>
+                      {fmt(requiredPower)} Power required · You have{" "}
+                      {fmt(Math.floor(p.power))}
+                    </p>
+                  )}
                   <div
                     className="level-slots"
                     role="img"
@@ -62,7 +69,10 @@ export function Upgrades({
                 </div>
                 <button
                   className="secondary upgrade-buy"
-                  disabled={level === 5 || p.score < cost}
+                  disabled={
+                    level === 5 || p.score < cost || p.power < requiredPower
+                  }
+                  aria-describedby={level < 5 ? `power-${u.id}` : undefined}
                   onClick={() => {
                     if (runner.buyUpgrade(u.id))
                       setNote(`${u.name} upgraded to level ${level + 1}.`);
@@ -76,7 +86,7 @@ export function Upgrades({
                   ) : (
                     <>
                       <Icon name="bolt" size={16} />
-                      Upgrade · {fmt(cost)}
+                      Upgrade · {fmt(cost)} Score
                     </>
                   )}
                 </button>
@@ -99,6 +109,10 @@ export function Upgrades({
             Upgrades are permanent in this browser. Score spent in the shop
             still counts toward your lifetime record.
           </p>
+          <p className="muted">
+            Earn virtual Power to unlock upgrade levels: 25, 100, 250, 500 and
+            1,000 Power for levels 1–5. Power is never spent; pay with Score.
+          </p>
           <div className="tip">
             <Icon name="help" size={20} />
             <p className="small">
@@ -115,7 +129,8 @@ export function Upgrades({
         {note}
       </p>
       <p className="small muted">
-        Game upgrades use virtual Score. No wallet, SQK or transaction required.
+        Virtual Power unlocks upgrade tiers. Score pays for upgrades. No wallet,
+        SQK or transaction required.
       </p>
     </>
   );

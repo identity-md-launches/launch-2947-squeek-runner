@@ -131,6 +131,34 @@ test("score service: sessions, SQL migration, replay, duplicates, progression, r
       410,
     );
     assert.equal((await post("/runs/not-a-uuid/finish", {})).status, 400);
+
+    // A second, real guest earns distance with a tap and never flips.
+    cookie = "";
+    const tapSession = await post("/session", {});
+    cookie = tapSession.headers.get("set-cookie")!.split(";")[0];
+    const tapGuest = (await tapSession.json()) as { name: string };
+    const tapRun = (await (await post("/runs", {})).json()) as {
+      runId: string;
+    };
+    const tapFinish = await post(`/runs/${tapRun.runId}/finish`, {
+      actions: [{ at: 0, type: "tap" }],
+      duration: 1,
+    });
+    assert.equal(tapFinish.status, 200);
+    assert.deepEqual(await tapFinish.json(), { score: 1, bestCombo: 0 });
+    const tapProfile = (await (
+      await fetch(url + "/profile", { headers: { Cookie: cookie } })
+    ).json()) as { distance: string; flips: number };
+    assert.equal(Number(tapProfile.distance), 0.35);
+    assert.equal(tapProfile.flips, 0);
+    for (const metric of ["daily", "weekly", "distance", "combo"]) {
+      const rows = (await (
+        await fetch(url + `/leaderboard?metric=${metric}`)
+      ).json()) as { name: string; distance: string }[];
+      const tapRow = rows.find((row) => row.name === tapGuest.name);
+      if (metric === "combo") assert.equal(tapRow, undefined);
+      else assert.equal(Number(tapRow?.distance), 0.35);
+    }
   } finally {
     await new Promise<void>((r, e) =>
       server.close((err) => (err ? e(err) : r())),

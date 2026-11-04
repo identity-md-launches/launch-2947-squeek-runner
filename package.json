@@ -14,7 +14,8 @@
     "db:migrate": "node --import tsx server/migrate.ts",
     "test:browser": "node test/browser.mjs",
     "test:ranked": "node --import tsx test/ranked-browser.ts",
-    "test:states": "node test/states-browser.mjs"
+    "test:states": "node test/states-browser.mjs",
+    "test:revision": "node test/revision-browser.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.7",

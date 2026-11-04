@@ -30,10 +30,10 @@ npm run preview
 - **Hold / release:** hold the wheel, sprint button or Space. Release around **72%** of the 1.8-second charge bar. The bright band marks the ideal window; the wider band allows Nice landings. A maximum hold launches automatically.
 - **Landing:** gravity, flight time, angular rotation, impact speed and stability determine Miss, Nice or Perfect. Nice starts at 40 points; Perfect at 100, before combo and upgrade bonuses. A miss clears the combo and leaves earned points intact.
 - **Fever:** five consecutive clean landings start 10 seconds of double landing points. Its timer pauses with the game. Further streak milestones can start another Fever after the current one expires.
-- **Keyboard:** Space supports taps and holds; Enter activates a focused button. Tab navigates controls. Escape closes dialogs.
+- **Keyboard:** Space supports taps and holds on the game; Space and Enter activate focused utility buttons. Tab navigates controls. Escape closes dialogs.
 - **Pause / sound:** controls sit in the game scene. Sound is opt-in. Leaving the tab or opening another screen pauses play; resume explicitly when ready.
 
-Score is a spendable game balance. Lifetime Score remains a record even after purchases. Power is a separate virtual game statistic. Neither value is SQK, real mining work or an official Squeekchain balance.
+Score is a spendable game balance. Lifetime Score remains a record even after purchases. Accumulated virtual Power unlocks upgrade tiers: levels 1–5 require 25, 100, 250, 500 and 1,000 Power respectively. Every upgrade type uses the same thresholds, and its row shows the required and current Power. Power is never spent; Score remains the purchase currency for upgrades and cosmetics. Existing upgrades and owned cosmetics are retained. Neither value is SQK, real mining work or an official Squeekchain balance.
 
 ## Completed MVP
 
@@ -60,7 +60,7 @@ Source: [Squeekchain](https://squeekchain.com/), [developer documentation](https
 | `/accounts/{address}` | 60 seconds when connected and dashboard is open | Account power, claimable testnet SQK, ownership counts and first page of Squeeks |
 | `/squeeks/{tokenId}`  | 60 seconds after a lookup                       | Ownership, level, base power and metadata name                                   |
 
-Polling stops in background tabs. Requests time out after eight seconds; 429 responses use a bounded Retry-After delay of 15 seconds to 15 minutes. Failed or unexpected responses show unavailable/stale states instead of generated numbers. Integer chain quantities are validated as strings and formatted with BigInt. Unsupported deployment chain IDs are rejected.
+Polling stops in background tabs. Requests time out after eight seconds; 429 responses use a bounded Retry-After delay of 15 seconds to 15 minutes. Each endpoint keeps its own deadline across navigation and observers. If the API does not expose Retry-After to browser JavaScript, the app uses a 60-second fallback. Refresh retries only eligible endpoints, so another endpoint’s error cannot bypass a cooldown. Submitting the same normalized Squeek ID retries a failed lookup when eligible and shows its loading state; rate-limited lookups remain disabled until their deadline. Failed or unexpected responses show unavailable/stale states instead of generated numbers. Integer chain quantities are validated as strings and formatted with BigInt. Unsupported deployment chain IDs are rejected.
 
 Account NFT lists explicitly show when only the first API page is loaded. Official NFT art is not copied into the arcade collection. The real hardware RPM does not follow player clicks.
 
@@ -105,7 +105,7 @@ Ranked play uses baseline equipment for everyone. Local upgrades and cosmetics r
 
 The production build, strict typecheck, gameplay and PostgreSQL tests, browser interactions, accessibility checks and the pinned design probe were run locally. Actual commands, outcomes, fixes, screenshots and environment limitations are recorded in [artifacts/validation.md](artifacts/validation.md). The implemented visual system is documented in [DESIGN.md](DESIGN.md).
 
-Recorded results: **18 tests**, **21 gameplay/browser checks**, **7 failure/wallet/orientation checks**, **16/16 design-probe checks**, zero axe violations on the five phone screens, and a successful ranked frontend/service/SQL round trip. The 390×844 first screen includes the main action. WebKit could not launch because native libraries were missing; PostgreSQL service checks used PGlite rather than an external database.
+Recorded results: **20 tests**, **21 gameplay/browser checks**, **7 failure/wallet/orientation checks**, **7 focused revision checks**, **16/16 design-probe checks**, zero axe violations on the five phone screens, and a successful ranked frontend/service/SQL round trip. The 390×844 first screen includes the main action. WebKit could not launch because native libraries were missing; PostgreSQL service checks used PGlite rather than an external database.
 
 To run browser checks on another machine:
 
@@ -114,9 +114,12 @@ npx playwright install chromium
 npm run build
 npm run test:browser
 npm run test:states
+npm run test:revision
 ```
 
 The browser script serves the export at `/preview/`, exercises gameplay and all screens, and writes temporary evidence to `test/scratch/browser-check/`. Internet access is needed for its real official-API check. Set `SQUEEK_ENGINE=webkit` after installing WebKit to repeat it in that engine. Native browser libraries must be installed on the host.
+
+The revision checks cover utility-button Space activation, earned Power unlocking upgrades, mixed API errors, retry deadlines across navigation, and same-ID lookup recovery. These tests use clearly identified local fixtures, never manufactured live readings. The distance service regression submits a real tap-only run against embedded PostgreSQL and verifies its 0.35 m entry on daily, weekly and distance boards, while preserving separate combo eligibility.
 
 The additional state checks simulate API failures, rate limits, unavailable storage, an EIP-6963 provider and phone rotation. To exercise the optional ranked UI against the included service and embedded PostgreSQL:
 
@@ -125,7 +128,7 @@ VITE_SCORE_API_URL=/api npm run build -- --outDir test/scratch/ranked-dist
 npm run test:ranked
 ```
 
-This alternate test export leaves the default `dist/` intact. The pinned design probe is assignment input and is not distributed; its final report is retained with the validation evidence.
+This alternate test export leaves the default `dist/` intact. The pinned design probe is assignment input and is not distributed; its final report is retained with the validation evidence. All five reopened findings, their reproduction evidence and fixes are recorded in `.imd-responses.json` and `artifacts/validation.md`.
 
 ## Remaining limitations
 

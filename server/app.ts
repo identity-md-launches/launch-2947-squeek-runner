@@ -169,12 +169,9 @@ export function createApp(pool: Pool, options: Options) {
       const run = found.rows[0];
       if (!run || run.used) {
         await client.query("ROLLBACK");
-        res
-          .status(409)
-          .json({
-            error:
-              "This run was already submitted or replaced. Start a new run.",
-          });
+        res.status(409).json({
+          error: "This run was already submitted or replaced. Start a new run.",
+        });
         return;
       }
       const elapsed = Date.now() - new Date(run.started_at).getTime();
@@ -190,12 +187,10 @@ export function createApp(pool: Pool, options: Options) {
         result = validateSubmission(req.body, elapsed);
       } catch {
         await client.query("ROLLBACK");
-        res
-          .status(422)
-          .json({
-            error:
-              "Run validation failed. Finish all landings and submit only actions from this run.",
-          });
+        res.status(422).json({
+          error:
+            "Run validation failed. Finish all landings and submit only actions from this run.",
+        });
         return;
       }
       await client.query("UPDATE runs SET used=true WHERE id=$1", [run.id]);
@@ -252,7 +247,7 @@ export function createApp(pool: Pool, options: Options) {
     const q =
       metric.data === "daily" || metric.data === "weekly"
         ? `SELECT p.name,SUM(s.score) AS score,p.distance,p.best_combo AS "bestCombo" FROM scores s JOIN players p ON p.id=s.player_id WHERE s.finished_at >= ${period} GROUP BY p.id,p.name,p.distance,p.best_combo ORDER BY score DESC,p.name ASC LIMIT 50`
-        : `SELECT name,score,distance,best_combo AS "bestCombo" FROM players WHERE flips>0 ORDER BY ${metric.data === "distance" ? "distance" : "best_combo"} DESC,name ASC LIMIT 50`;
+        : `SELECT name,score,distance,best_combo AS "bestCombo" FROM players WHERE ${metric.data === "distance" ? "distance>0" : "flips>0"} ORDER BY ${metric.data === "distance" ? "distance" : "best_combo"} DESC,name ASC LIMIT 50`;
     res.json((await pool.query(q)).rows);
   });
   app.use((_req, res) =>
@@ -261,22 +256,18 @@ export function createApp(pool: Pool, options: Options) {
   app.use((error: Error, _req: Request, res: Response, _next: NextFunction) => {
     const status = (error as Error & { status?: number }).status;
     if (status === 400 || status === 413) {
-      res
-        .status(status)
-        .json({
-          error:
-            status === 413
-              ? "Run submission is too large."
-              : "Send a valid JSON request.",
-        });
+      res.status(status).json({
+        error:
+          status === 413
+            ? "Run submission is too large."
+            : "Send a valid JSON request.",
+      });
       return;
     }
     console.error("Score request failed:", error.name);
-    res
-      .status(503)
-      .json({
-        error: "Score service is unavailable. Your local progress is safe.",
-      });
+    res.status(503).json({
+      error: "Score service is unavailable. Your local progress is safe.",
+    });
   });
   return app;
 }

@@ -9,6 +9,8 @@ import {
   launch,
   replay,
   upgradeCost,
+  UPGRADES,
+  SKINS,
   type Action,
 } from "../src/shared/rules";
 import {
@@ -18,6 +20,7 @@ import {
   purchaseSkin,
   purchaseUpgrade,
   saveProgress,
+  upgradePowerRequired,
 } from "../src/lib/progression";
 import { Runner } from "../src/game/Runner";
 import { validateSubmission } from "../server/validation";
@@ -106,7 +109,7 @@ test("maximum charge launches automatically, release cannot double-submit it", (
   assert.equal(r.getSnapshot().result, "MISS");
 });
 test("purchases enforce balances and level caps without removing lifetime score", () => {
-  let p = addPoints(freshProgress(), 10000);
+  let p = { ...addPoints(freshProgress(), 10000), power: 1000 };
   const lifetime = p.totalScore;
   for (let i = 0; i < 5; i++) {
     const cost = upgradeCost("wheel", p.levels),
@@ -122,6 +125,45 @@ test("purchases enforce balances and level caps without removing lifetime score"
   assert.equal(purchaseSkin(q, "miner")!.score, q.score);
   assert.equal(purchaseUpgrade(freshProgress(), "wheel"), null);
   assert.equal(purchaseSkin(freshProgress(), "golden"), null);
+});
+test("Power unlocks every upgrade tier at its boundary and only Score is spent", () => {
+  for (const { id } of UPGRADES) {
+    for (let level = 0; level < 5; level++) {
+      const required = upgradePowerRequired(level);
+      const p = {
+        ...addPoints(freshProgress(), 100000),
+        power: required - 0.01,
+        levels: { ...EMPTY_LEVELS, [id]: level },
+      };
+      assert.equal(purchaseUpgrade(p, id), null);
+      const atBoundary = { ...p, power: required };
+      const bought = purchaseUpgrade(atBoundary, id)!;
+      assert.equal(bought.levels[id], level + 1);
+      assert.equal(bought.power, required);
+      assert.equal(bought.score, p.score - upgradeCost(id, p.levels));
+      assert.equal(bought.totalScore, p.totalScore);
+      assert.equal(purchaseUpgrade({ ...atBoundary, score: 0 }, id), null);
+    }
+  }
+});
+test("equal-Score Runner fixtures progress differently with low and high Power", () => {
+  for (const [power, expected] of [
+    [0, 0],
+    [1000000, 25],
+  ]) {
+    const r = new Runner({ ...addPoints(freshProgress(), 100000), power });
+    let purchases = 0;
+    for (const u of UPGRADES)
+      for (let level = 0; level < 5; level++)
+        purchases += Number(r.buyUpgrade(u.id));
+    assert.equal(purchases, expected);
+    // Cosmetics remain Score purchases, and existing ownership is preserved.
+    for (const s of SKINS.filter((s) => s.cost > 0))
+      assert.equal(r.equipSkin(s.id), true);
+    assert.equal(r.getSnapshot().progress.power, power);
+    saveProgress(r.getSnapshot().progress);
+    assert.deepEqual(loadProgress(), r.getSnapshot().progress);
+  }
 });
 test("saved progress survives reload and malformed storage resets safely", () => {
   const p = addPoints(freshProgress(), 123);
